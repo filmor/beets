@@ -17,6 +17,7 @@ import os
 import sys
 import re
 import shutil
+from beets.util.template import Template
 from collections import defaultdict
 
 MAX_FILENAME_LENGTH = 200
