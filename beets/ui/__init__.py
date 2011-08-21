@@ -20,8 +20,8 @@ import os
 import locale
 import optparse
 import textwrap
-import ConfigParser
 import sys
+from configobj import ConfigObj
 from difflib import SequenceMatcher
 import logging
 import sqlite3
@@ -262,15 +262,15 @@ def config_val(config, section, name, default, vtype=None):
     vtype optionally specifies the return type (although only bool
     is supported for now).
     """
-    if not config.has_section(section):
-        config.add_section(section)
+    if not section in config:
+        config[section] = {}
     
     try:
         if vtype is bool:
-            return config.getboolean(section, name)
+            return config[section].as_bool(name)
         else:
-            return config.get(section, name)
-    except ConfigParser.NoOptionError:
+            return config[section][name]
+    except KeyError:
         return default
 
 def human_bytes(size):
@@ -522,27 +522,21 @@ class SubcommandsOptionParser(optparse.OptionParser):
 
 # The root parser and its main function.
 
-def main(args=None, configfh=None):
+def main(args=None, configpath=None):
     """Run the main command-line interface for beets."""
     # Get the default subcommands.
     from beets.ui.commands import default_commands
 
     # Read defaults from config file.
-    config = ConfigParser.SafeConfigParser()
-    if configfh:
-        configpath = None
-    elif CONFIG_PATH_VAR in os.environ:
-        configpath = os.path.expanduser(os.environ[CONFIG_PATH_VAR])
-    else:
-        configpath = DEFAULT_CONFIG_FILE
-    if configpath:
-        configpath = util.syspath(configpath)
-        if os.path.exists(util.syspath(configpath)):
-            configfh = open(configpath)
+    config = ConfigObj()
+    if not configpath:
+        if CONFIG_PATH_VAR in os.environ:
+            configpath = os.path.expanduser(os.environ[CONFIG_PATH_VAR])
         else:
-            configfh = None
-    if configfh:
-        config.readfp(configfh)
+            configpath = DEFAULT_CONFIG_FILE
+    configpath = util.syspath(configpath)
+    if os.path.exists(util.syspath(configpath)):
+        config = ConfigObj(configpath)
 
     # Add plugin paths.
     plugpaths = config_val(config, 'beets', 'pluginpath', '')
@@ -576,6 +570,7 @@ def main(args=None, configfh=None):
         config_val(config, 'beets', 'library', DEFAULT_LIBRARY)
     directory = options.directory or \
         config_val(config, 'beets', 'directory', DEFAULT_DIRECTORY)
+
     legacy_path_format = config_val(config, 'beets', 'path_format', None)
     if options.path_format:
         # If given, -p overrides all path format settings
@@ -587,8 +582,8 @@ def main(args=None, configfh=None):
         else:
             # If no legacy path format, use the defaults instead.
             path_formats = DEFAULT_PATH_FORMATS
-        if config.has_section('paths'):
-            path_formats.update(config.items('paths'))
+        if 'paths' in config:
+            path_formats.update(config['paths'])
     art_filename = \
         config_val(config, 'beets', 'art_filename', DEFAULT_ART_FILENAME)
     db_path = os.path.expanduser(libpath)
