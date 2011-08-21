@@ -244,9 +244,9 @@ class Item(object):
                 # copyfile rather than copy will not copy permissions
                 # bits, thus possibly making the copy writable even when
                 # the original is read-only.
-                shutil.copyfile(syspath(self.path), syspath(dest))
+                util.copyfile(self.path, dest)
             else:
-                shutil.move(syspath(self.path), syspath(dest))
+                util.move(self.path, dest)
             
         # Either copying or moving succeeded, so update the stored path.
         old_path = self.path
@@ -820,6 +820,7 @@ class Library(BaseLibrary):
             path_format = self.path_formats['comp']
         else:
             path_format = self.path_formats['default']
+        print path_format
         subpath_tmpl = Template(path_format)
         
         # Get the item's Album if it has one.
@@ -1178,9 +1179,9 @@ class Album(BaseAlbum):
             new_art = self.art_destination(old_art, newdir)
             if new_art != old_art:
                 if copy:
-                    shutil.copy(syspath(old_art), syspath(new_art))
+                    util.copy(old_art, new_art)
                 else:
-                    shutil.move(syspath(old_art), syspath(new_art))
+                    util.move(old_art, new_art)
                 self.artpath = new_art
             if not copy: # Prune old path.
                 util.prune_dirs(os.path.dirname(old_art),
@@ -1235,5 +1236,5 @@ class Album(BaseAlbum):
         # Normal operation.
         if oldart == artdest:
             util.soft_remove(oldart)
-        shutil.copyfile(syspath(path), syspath(artdest))
+        util.copyfile(syspath(path), syspath(artdest))
         self.artpath = artdest

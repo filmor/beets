@@ -22,6 +22,30 @@ from collections import defaultdict
 
 MAX_FILENAME_LENGTH = 200
 
+def move(path, dest, pathmod=None):
+    path = syspath(path)
+    dest = syspath(dest)
+    pathmod = pathmod or os.path
+
+    pathmod.basename(path)
+    if pathmod.isdir(dest):
+        dest = pathmod.join(dest, pathmod.basename(path))
+
+    if pathmod.isfile(dest) or pathmod.isdir(dest):
+        raise SystemError
+
+    return shutil.move(path, dest)
+
+def copy(path, dest):
+    path = syspath(path)
+    dest = syspath(dest)
+    return shutil.copy(path, dest)
+
+def copyfile(path, dest):
+    path = syspath(path)
+    dest = syspath(dest)
+    return shutil.copyfile(path, dest)
+
 def normpath(path):
     """Provide the canonical form of the path suitable for storing in
     the database.
