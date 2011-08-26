@@ -520,6 +520,37 @@ class SubcommandsOptionParser(optparse.OptionParser):
         return options, subcommand, suboptions, subargs
 
 
+def _compile_transform(name, code, path=""):
+    from beets.util.template import Template
+    my_globals = {"Template" : Template}
+
+    lines = [j for j in code.splitlines() if len(j) > 0]
+    func = None
+    if len(lines) == 1:
+        code = compile(lines[0], path, "eval")
+        func = lambda mapping: eval(code, mapping, my_globals)
+        func.code = code
+        func.my_globals = my_globals
+    else:
+        code_string = "\n".join(["def do_transform():"] +
+                                # Indent the code from the config file
+                                ["  " + j for j in lines]
+                                )
+
+        def f(mapping):
+            exec code_string in mapping, my_globals
+            return my_globals["do_transform"]()
+
+        func = f
+        func.code_string = code_string
+        func.my_globals = my_globals
+
+    func.__name__ = name
+    func.func_name = name
+
+    return func
+
+
 # The root parser and its main function.
 
 def main(args=None, configpath=None):
@@ -537,6 +568,8 @@ def main(args=None, configpath=None):
     configpath = util.syspath(configpath)
     if os.path.exists(util.syspath(configpath)):
         config = ConfigObj(configpath)
+
+    beets_section = config['beets']
 
     # Add plugin paths.
     plugpaths = config_val(config, 'beets', 'pluginpath', '')
@@ -571,19 +604,20 @@ def main(args=None, configpath=None):
     directory = options.directory or \
         config_val(config, 'beets', 'directory', DEFAULT_DIRECTORY)
 
-    legacy_path_format = config_val(config, 'beets', 'path_format', None)
+    path_formats = DEFAULT_PATH_FORMATS
+    transforms = beets_section['transforms']
+
+    # Convert transforms to python code objects
+    for i in transforms:
+        transforms[i] = _compile_transform(i, transforms[i], configpath)
+
     if options.path_format:
         # If given, -p overrides all path format settings
         path_formats = {'default': options.path_format}
     else:
-        if legacy_path_format:
-            # Old path formats override the default values.
-            path_formats = {'default': legacy_path_format}
-        else:
-            # If no legacy path format, use the defaults instead.
-            path_formats = DEFAULT_PATH_FORMATS
-        if 'paths' in config:
-            path_formats.update(config['paths'])
+        if 'paths' in beets_section:
+            path_formats.update(beets_section['paths'])
+
     art_filename = \
         config_val(config, 'beets', 'art_filename', DEFAULT_ART_FILENAME)
     db_path = os.path.expanduser(libpath)
@@ -591,6 +625,7 @@ def main(args=None, configpath=None):
         lib = library.Library(db_path,
                               directory,
                               path_formats,
+                              transforms,
                               art_filename)
     except sqlite3.OperationalError:
         raise UserError("database file %s could not be opened" % db_path)

@@ -730,6 +730,7 @@ class Library(BaseLibrary):
     def __init__(self, path='library.blb',
                        directory='~/Music',
                        path_formats=None,
+                       transforms=None,
                        art_filename='cover',
                        item_fields=ITEM_FIELDS,
                        album_fields=ALBUM_FIELDS):
@@ -743,6 +744,7 @@ class Library(BaseLibrary):
         elif isinstance(path_formats, basestring):
             path_formats = {'default': path_formats}
         self.path_formats = path_formats
+        self.transforms = transforms
         self.art_filename = bytestring_path(art_filename)
         
         self.conn = sqlite3.connect(self.path)
@@ -820,8 +822,7 @@ class Library(BaseLibrary):
             path_format = self.path_formats['comp']
         else:
             path_format = self.path_formats['default']
-        print path_format
-        subpath_tmpl = Template(path_format)
+        subpath_tmpl = Template(path_format, self.transforms)
         
         # Get the item's Album if it has one.
         album = self.get_album(item)
@@ -837,8 +838,8 @@ class Library(BaseLibrary):
             else:
                 # From Item.
                 value = getattr(item, key)
-            mapping[key] = util.sanitize_for_path(value, pathmod, key)
-        
+            mapping[key] = util.sanitize_for_path(value, pathmod)
+
         # Use the album artist if the track artist is not set and
         # vice-versa.
         if not mapping['artist']:
@@ -848,6 +849,8 @@ class Library(BaseLibrary):
         
         # Perform substitution.
         subpath = subpath_tmpl.substitute(mapping)
+        if subpath == "":
+            raise IOError
         
         # Encode for the filesystem, dropping unencodable characters.
         if isinstance(subpath, unicode) and not fragment:

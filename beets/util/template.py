@@ -12,21 +12,41 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
+_standard_transforms = {
+    'bitrate': lambda mapping: u'%ikbps' % (mapping[bitrate] / 1000),
+}
+
+for name in ('track', 'tracktotal', 'disc', 'disctotal'):
+    _standard_transforms[name] = lambda mapping: u'%02i' % mapping[name]
+
 class Template(object):
     """Implements a lazy substitute for string.Template, that allows to skip
        substitutions if part of the string is empty."""
-    def __init__(self, string):
+    def __init__(self, string, transforms = {}):
         self._string = string
+        self._transforms = _standard_transforms.copy()
+        self._transforms.update(transforms)
 
     def _get_val(self, mapping, key):
-        value = mapping.get(key, "")
-        if hasattr(value, "__call__"):
-            value = value()
-        return value
+        result = None
+        if key in self._transforms:
+            transform = self._transforms[key](mapping.copy())
+            # TODO: This is REALLY hacky at the moment!
+            if type(transform) is Template:
+                transform._transforms = self._transforms.copy()
+                transform._transforms.pop(key)
+                transform = transform(mapping.copy())
+            result = transform
+        else:
+            result = mapping.get(key, "")
+        return unicode(result) if not result is None else ""
 
-    def _do_subs(self, mapping, start, end):
+    def _do_subs(self, string, mapping, start=0, end=-1):
         result = ""
-        string = self._string
+        end = min(end, len(string))
+        start = max(start, 0)
+        if end < start:
+            end = len(string)
         i = start
         while i < end:
             # Handle escaping
@@ -71,7 +91,7 @@ class Template(object):
                     elif string[j] == '}':
                         level -= 1
                         if level == 0:
-                            result += self._do_subs(mapping, i, j)
+                            result += self._do_subs(string, mapping, i, j)
                             i = j
                             break
                     j += 1
@@ -84,6 +104,12 @@ class Template(object):
 
         return result
 
+    def __repr__(self):
+        return "<Template: %s>" % (self._string,)
+
     def substitute(self, mapping):
-        return self._do_subs(mapping, 0, len(self._string))
+        return self._do_subs(self._string, mapping)
+
+    def __call__(self, mapping):
+        return self.substitute(mapping)
 

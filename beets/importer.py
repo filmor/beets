@@ -76,6 +76,7 @@ def _reopen_lib(lib):
             lib.path,
             lib.directory,
             lib.path_formats,
+            lib.transforms,
             lib.art_filename,
         )
     else:
